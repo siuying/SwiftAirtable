@@ -242,7 +242,6 @@ public struct Airtable: Equatable, Codable {
     public func fetchPage<T>(table: String, maxRecords: Int, pageSize: Int, offset: String = "", with eachPage: @escaping (_ objects: [T]?, _ error: Error?) -> Void, done: @escaping () -> Void) where T: AirtableObject {
         // Mount URL
         let stringUrl = self.apiBaseUrl + "/" + table.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)! + "?maxRecords=\(maxRecords)&pageSize=\(pageSize)&offset=\(offset)&view=Grid%20view"
-        print("stringUrl \(stringUrl)")
         guard let url =  URL(string: stringUrl) else {
             print("Invalid URL \(stringUrl)")
             return
