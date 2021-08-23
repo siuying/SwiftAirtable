@@ -240,9 +240,9 @@ public struct Airtable: Equatable, Codable {
     }
 
     public func fetchPage<T>(table: String, maxRecords: Int, pageSize: Int, offset: String = "", with eachPage: @escaping (_ objects: [T]?, _ error: Error?) -> Void, done: @escaping () -> Void) where T: AirtableObject {
-
         // Mount URL
         let stringUrl = self.apiBaseUrl + "/" + table.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)! + "?maxRecords=\(maxRecords)&pageSize=\(pageSize)&offset=\(offset)&view=Grid%20view"
+        print("stringUrl \(stringUrl)")
         guard let url =  URL(string: stringUrl) else {
             print("Invalid URL \(stringUrl)")
             return
@@ -413,21 +413,19 @@ public struct Airtable: Equatable, Codable {
             if let results = jsonValue?["records"] as? [[String: Any]] {
                 // Objects to return
                 let objects: [T] = self.extractObjects(fromJsonRecords: results, following: tableSchema)
-                let offset = jsonValue?["offset"] as? String
 
                 // Forward objects
                 completion(objects, nil)
 
-                return offset
+                return jsonValue?["offset"] as? String
             } else if let result = jsonValue {
                 // Objects to return
                 let objects: [T] = self.extractObjects(fromJsonRecords: [result], following: tableSchema)
-                let offset = result["offset"] as? String
 
                 // Forward objects
                 completion(objects, nil)
 
-                return offset
+                return result["offset"] as? String
 
             } else {
                 // Forward proper error
