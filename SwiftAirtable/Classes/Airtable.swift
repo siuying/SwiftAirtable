@@ -239,10 +239,10 @@ public struct Airtable: Equatable, Codable {
         task.resume()
     }
 
-    public func fetchPage<T>(table: String, maxRecords: Int, pageSize: Int, offset: String? = nil, with completion: @escaping (_ response: (objects: [T], offset: String?)?, _ error: Error?) -> Void) where T: AirtableObject {
+    public func fetchPage<T>(table: String, maxRecords: Int, pageSize: Int, offset: String = "", with eachPage: @escaping (_ objects: [T]?, _ error: Error?) -> Void, done: @escaping () -> Void) where T: AirtableObject {
 
         // Mount URL
-        let stringUrl = self.apiBaseUrl + "/" + table.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)! + "?maxRecords=\(maxRecords)&pageSize=\(pageSize)&view=Grid%20view"
+        let stringUrl = self.apiBaseUrl + "/" + table.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)! + "?maxRecords=\(maxRecords)&pageSize=\(pageSize)&offset=\(offset)&view=Grid%20view"
         guard let url =  URL(string: stringUrl) else {
             print("Invalid URL \(stringUrl)")
             return
@@ -250,9 +250,14 @@ public struct Airtable: Equatable, Codable {
         // Create task
         let task = self.readAuthorizedSession.dataTask(with: url) { (data, response, error) in
             if let error = error {
-                completion(([], nil), error)
+                eachPage(nil, error)
             } else if let data = data {
-                self.handleFetchResponse(with: data, completion: completion)
+                let offset = self.handleFetchResponsePaginated(with: data, completion: eachPage)
+                if let offset = offset {
+                    fetchPage(table: table, maxRecords: maxRecords, pageSize: pageSize, offset: offset, with: eachPage, done: done)
+                } else {
+                    done()
+                }
             }
         }
         // Start task
@@ -401,7 +406,7 @@ public struct Airtable: Equatable, Codable {
             completion([], error)
         }
     }
-    fileprivate func handleFetchResponse<T>(with data: Data, completion: @escaping (_ response: ([T], String?)?, _ error: Error?) -> Void) where T: AirtableObject {
+    fileprivate func handleFetchResponsePaginated<T>(with data: Data, completion: @escaping (_ objects: [T]?, _ error: Error?) -> Void) -> String? where T: AirtableObject {
         do {
             // Downloaded Variables
             let jsonValue = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
@@ -411,22 +416,28 @@ public struct Airtable: Equatable, Codable {
                 let offset = jsonValue?["offset"] as? String
 
                 // Forward objects
-                completion((objects, offset), nil)
+                completion(objects, nil)
+
+                return offset
             } else if let result = jsonValue {
                 // Objects to return
                 let objects: [T] = self.extractObjects(fromJsonRecords: [result], following: tableSchema)
                 let offset = result["offset"] as? String
 
                 // Forward objects
-                completion((objects, offset), nil)
+                completion(objects, nil)
+
+                return offset
 
             } else {
                 // Forward proper error
                 completion(nil, AirtableResponseError.invalidFormat)
+                return nil
             }
         } catch {
             // Forward error handling
             completion(nil, error)
+            return nil
         }
     }
 
@@ -466,7 +477,7 @@ public struct Airtable: Equatable, Codable {
                 }
                 
             } else {
-                print("Warning: - Couldn't find fieldName '\(key.fieldName)' in received object (did you use an wrong schema?)")
+                // print("Warning: - Couldn't find fieldName '\(key.fieldName)' in received object (did you use an wrong schema?)")
             }
         })
         return T(withId: id, populatedTableSchemaKeys: airtableObject)
